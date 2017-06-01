@@ -1,0 +1,64 @@
+To-Do:
+* show source in notebook code
+
+
+Questions:
+* Define the concepts
+* Define workflows (import, process, visualize, ...)
+* Code I need to  write, libraries I can use.
+* How to present?
+
+
+Steps:
+1. Clean Data
+2. Combine data in meaningful way
+Limit to movies with x reviews?
+3a. Look for correlations. e.g. rating with others, budget, ...
+3b. Produce some visualizations
+  - most rated movies
+  - rating distribution
+  - genre vs rating
+  - timeline of certain movies (current top100?) rating, ...
+  - duration vs rating
+  - best directors? director and rating?
+  - best actors? actor and rating?
+  - release year vs rating
+  - budget vs rating
+  - budget vs gross
+  - number of reviews/votes vs rating
+  - number and budgaet of movies per year
+  - number of reviews correlation to number of votes
+  - gross vs reviews
+  - correlation of keywords to rating/gross/number of votes -> find keywords that every good movie has
+  - draw links between movies, link database
+4. Predict rating of new movies
+  - with keywords, genre, budget, director
+  - Personalized score. Predict how much I will like a movie based on movies I rated/liked before.
+
+Questions
+What kind of movies get the most gross to budget coefficient?
+What movies make the most money?
+What makes a good movie?
+Can we predict the features/themes of a good selling movie (like keywords)?
+Can we predict the rating/revenue for a given movie genre, actors, director, etc?
+
+
+Possible further ideas:
+* Heatmap, PCA, Correlation: https://www.kaggle.com/arthurtok/principal-component-analysis-with-kmeans-visuals
+* https://www.r-bloggers.com/predicting-movie-ratings-with-imdb-data-and-r/
+* https://rpubs.com/yash91sharma/dw_project_ys
+* https://blog.nycdatascience.com/student-works/machine-learning/movie-rating-prediction/
+* https://github.com/Poyuli/sentiment.analysis
+
+
+Goals:
+* Learn Python
+* Learn about different libraries to work with datasets, visualization, ...
+* Learn about statistical significance, correlation, variance in a dataset
+* Introduction to Machine Learning and basic categorization and prediction
+
+
+Libraries:
+* SQLAlchemy, SQLObject, (urllib2)[deprecated] => requests
+
+
