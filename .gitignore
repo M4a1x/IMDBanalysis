@@ -1,5 +1,9 @@
+##### Visual Studio Code Ignore #####
+.vscode
+
 ##### Python ignores #####
 ## From: https://github.com/github/gitignore
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -1,12 +1,16 @@
-import os
-import re
+""" Provides methods to extract data from the imdb dataset """
+
 import logging
+import re
 
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
-def get_ratings():
+def get_ratings(file):
     """Reads in the ratings.list from imdb interface dump
+
+    Args:
+        file (str): The path to the ratings.list file
 
     Returns:
         list: A list of movies tuples containing votes and ratings
@@ -20,38 +24,36 @@ def get_ratings():
         'opt. episode name', 'opt. VG|TV|V tag'), (votecount, rating))
 
     """
-    # Input File: ratings.list
-    filedir = os.path.join('..', 'database', 'selection')
-    file = os.path.join(filedir, 'ratings.list')
+
     regex = re.compile(
-        "\s+\*?\s*[\*\.\d]{10}\s+"  # Distribution of Votes
-        "(\d+)"                     # (Number of votes)
-        "\s+"
-        "(\d?\d\.\d)"               # (Rating)
-        "\s+"
-        "(.*)"                      # (Title (Movie/Series))
-        "\s\("
-        "([\d\?]{4})"               # (Year)
-        "/?([XIVLMD]+)?\)"          # opt. (Nr. of movies with same title?)
-        "(?:\s\{([^{}]+)\})?"       # opt. name of episode
-        "(?:\s\((VG|TV|V)\))?")     # opt. VG|TV|V for videogame|tv|video
+        r"\s+\*?\s*[\*\.\d]{10}\s+"  # Distribution of Votes
+        r"(\d+)"                     # (Number of votes)
+        r"\s+"
+        r"(\d?\d\.\d)"               # (Rating)
+        r"\s+"
+        r"(.*)"                      # (Title (Movie/Series))
+        r"\s\("
+        r"([\d\?]{4})"               # (Year)
+        r"/?([XIVLMD]+)?\)"          # opt. (Nr. of movies with same title?)
+        r"(?:\s\{([^{}]+)\})?"       # opt. name of episode
+        r"(?:\s\((VG|TV|V)\))?")     # opt. VG|TV|V for videogame|tv|video
     ratings = []
 
     # Open up ratings
-    log.debug("Opening ratings file...")
-    with open(file, 'r') as inF:
+    LOG.debug("Opening ratings file...")
+    with open(file, 'r') as input_file:
         # Read until the main part where all movie ratings start
-        for line in inF:
+        for line in input_file:
             if 'MOVIE RATINGS REPORT' in line:
                 break
 
         # Skip empty line and header of the list
-        next(inF)
-        next(inF)
+        next(input_file)
+        next(input_file)
 
-        log.debug("Reached beginning of movie list")
+        LOG.debug("Reached beginning of movie list")
         # Go through each line in the file
-        for line in inF:
+        for line in input_file:
             # The regex parsing.
             # Returns a match which groups are formatted as follows:
             # (votes, rating, title, year|????, nr, title of episode, v|vg|tv)
@@ -63,9 +65,9 @@ def get_ratings():
                 ratings.append(element)
             else:
                 # If the long line with '----' is reached, the list is over
-                line = next(inF)
+                line = next(input_file)
                 if line[0] == '-':
-                    log.debug("Reached end of movie list")
+                    LOG.debug("Reached end of movie list")
                     break
                 else:
                     # Oh oh, a movie couldn't be parsed!
@@ -73,12 +75,15 @@ def get_ratings():
                         "There's a movie that coudnt't be parsed! "
                         "I don't know what to do!\n"
                         "Error occured before this line: " + line)
-    log.info("Finised parsing ratings")
+    LOG.info("Finised parsing ratings")
     return ratings
 
 
-def get_genres():
+def get_genres(file):
     """Reads in the genres.list file from imdb interface dump
+
+    Args:
+        file (str): Path to the genre.list file
 
     Returns:
         list : A list of touples of the movies.
@@ -92,31 +97,29 @@ def get_genres():
         The list contairs all genres this movie belongs to
 
     """
-    # Input File: genres.list
-    filedir = os.path.join('..', 'database', 'selection')
-    file = os.path.join(filedir, 'genres.list')
+
     regex = re.compile(
-        "(.*)"                      # (Title (Movie/Series))
-        "\s\("
-        "([\d\?]{4})"               # (Year|????)
-        "/?([XIVLMD]+)?\)"          # opt. (Nr. of movies with same title?)
-        "(?:\s\{([^{}]+)\})?"       # optional (Title of Episode)
-        "(?:\s\{\{SUSPENDED\}\})?"  # optional suspended tag
-        "(?:\s\((VG|TV|V)\))?"      # optional TV|V tag for tv/video releases
-        "\s+"
-        "(.*)")                     # (Genre)
+        r"(.*)"                      # (Title (Movie/Series))
+        r"\s\("
+        r"([\d\?]{4})"               # (Year|????)
+        r"/?([XIVLMD]+)?\)"          # opt. (Nr. of movies with same title?)
+        r"(?:\s\{([^{}]+)\})?"       # optional (Title of Episode)
+        r"(?:\s\{\{SUSPENDED\}\})?"  # optional suspended tag
+        r"(?:\s\((VG|TV|V)\))?"      # optional TV|V tag for tv/video releases
+        r"\s+"
+        r"(.*)")                     # (Genre)
     genres = []
 
     # Open up ratings
-    log.debug("Opening genres file...")
-    with open(file, 'r') as inF:
-        for line in inF:
+    LOG.debug("Opening genres file...")
+    with open(file, 'r') as input_file:
+        for line in input_file:
             if 'THE GENRES LIST' in line:
                 break
-        print(next(inF))
-        print(next(inF))
+        next(input_file)
+        next(input_file)
 
-        for line in inF:
+        for line in input_file:
             match = regex.match(line)
             if match:
                 tpl = match.groups()
@@ -135,5 +138,5 @@ def get_genres():
                     "There's a movie that coudnt't be parsed! "
                     "I don't know what to do!\n"
                     "Error occured before this line: " + line)
-    log.info("Finised parsing genres")
+    LOG.info("Finised parsing genres")
     return genres
