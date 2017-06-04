@@ -13,6 +13,114 @@ Movie.episode.__doc__ = "Title of the episode"
 Movie.tag.__doc__ = """VG|TV|V
                        indicating videogame, tv release, video respectively"""
 
+MOVIE_PATTERN = (
+    r"(.*)"                      # (Title (Movie/Series))
+    r"\s\("
+    r"([\d\?]{4})"               # (Year|????)
+    r"/?([XIVLMD]+)?\)"          # opt. (Nr. of movies with same title?)
+    r"(?:\s\{([^{}]+)\})?"       # optional (Title of Episode)
+    r"(?:\s\{\{SUSPENDED\}\})?"  # optional suspended tag
+    r"(?:\s\((VG|TV|V)\))?")     # optional TV|V tag for tv/video releases
+
+
+def get_matches(file: str, regex: str,
+                start: str, skip: int, stop: str) -> list:
+    """Reads in a *.list file from imdb interface dump and performs regex
+       on every line
+
+    Args:
+        file: The path to the *.list file
+        regex: The regex pattern that matches the whole line
+        start: Indicates the start of the
+               main list (skip preceeding comments/metadata)
+        skip: Number of lines to skip after 'start'
+              to reach the beginning of the main list
+        stop: Indicates the stop of the main list (omit trailing comments/meta)
+
+    Returns:
+        A list of tuples: [(Data1), (Data2), ...]
+    """
+
+    return_list = []  # type: list
+
+    # Open up *.list file
+    LOG.debug("Opening list file...")
+    with open(file, 'r') as input_file:
+        # Skip all lines until the start str (skip comments/meta)
+        for line in input_file:
+            if start in line:
+                break
+        # Skip 'skip' lines to main body
+        for _ in range(skip):
+            next(input_file)
+
+        # Read in main data
+        for line in input_file:
+            match = re.match(regex, line)
+            if match:
+                return_list.append(match.groups())
+            else:
+                # If the long stop line is reached, the main list is over
+                # Skip possible empty lines
+                while line == '\n':
+                    line = next(input_file)
+                if stop in line:
+                    LOG.debug("Reached end of list")
+                    break
+                else:
+                    # It's no the stopline! A movie couldn't be parsed!
+                    raise NotImplementedError(
+                        "There's a movie that coudnt't be parsed! "
+                        "I don't know what to do!\n"
+                        "Error occured on this line: " + line)
+    LOG.info("Finised parsing list")
+    return return_list
+
+
+def get_movie_matches(file: str, data_regex: str,
+                      start: str, skip: int, stop: str) -> list:
+    """Reads in a *.list file from imdb interface dump and performs regex
+
+    This method provides a unified way to read in the *.list files which are in
+    the 'Movie \s+ Data' format.
+
+    Args:
+        file: The path to the *.list file
+
+        regex: The regex pattern that matches the specific end of the line
+               aka. only the data. It must contain one group
+
+        start: Indicates the start of the
+               main list (skip preceeding comments/metadata)
+
+        skip: Number of lines to skip after 'start'
+              to reach the beginning of the main list
+
+        stop: Indicates the stop of the main list (omit trailing comments/meta)
+
+    Returns:
+        A list of tuples of type: (Movie, [Data])
+    """
+
+    movie_list = []  # type: list
+    pattern = MOVIE_PATTERN + r"\s+" + data_regex
+
+    for line in get_matches(file, pattern, start, skip, stop):
+        mov = Movie(line[0], int(line[1]) if line[1] != '????' else None,
+                    *line[2:5])
+        # Assuming that entries for the same movie are grouped together
+        # If last movie is the same as the current one
+        if movie_list and movie_list[-1][0] == mov:
+            # Add current data to existing movie
+            movie_list[-1][1].append(line[5])
+        else:
+            # Or create new entry if movie does not exist
+            entry = (mov, [line[5]])
+            movie_list.append(entry)
+
+    LOG.info("Finised parsing movie type list")
+    return movie_list
+
 
 def get_ratings(file: str) -> list:
     """Reads in the ratings.list from imdb interface dump
@@ -24,62 +132,26 @@ def get_ratings(file: str) -> list:
         A list of tuples: (Movie, (votes, ratings))
     """
 
-    regex = re.compile(
+    ratings_pattern = (
         r"\s+\*?\s*[\*\.\d]{10}\s+"  # Distribution of Votes
         r"(\d+)"                     # (Number of votes)
         r"\s+"
-        r"(\d?\d\.\d)"               # (Rating)
-        r"\s+"
-        r"(.*)"                      # (Title (Movie/Series))
-        r"\s\("
-        r"([\d\?]{4})"               # (Year)
-        r"/?([XIVLMD]+)?\)"          # opt. (Nr. of movies with same title?)
-        r"(?:\s\{([^{}]+)\})?"       # opt. name of episode
-        r"(?:\s\((VG|TV|V)\))?")     # opt. VG|TV|V for videogame|tv|video
+        r"(\d?\d\.\d)")              # (Rating)
+
     ratings = []  # type: list
 
-    # Open up ratings
-    LOG.debug("Opening ratings file...")
-    with open(file, 'r') as input_file:
-        # Read until the main part where all movie ratings start
-        for line in input_file:
-            if 'MOVIE RATINGS REPORT' in line:
-                break
+    pattern = ratings_pattern + r"\s+" + MOVIE_PATTERN
+    start = 'MOVIE RATINGS REPORT'
+    skip = 2
+    stop = '------------------------------------------------------------------'
 
-        # Skip empty line and header of the list
-        next(input_file)
-        next(input_file)
+    for line in get_matches(file, pattern, start, skip, stop):
+        mov = Movie(line[2], int(line[3]) if line[3] != '????' else None,
+                    *line[4:7])
+        element = (mov, (int(line[0]), float(line[1])))
+        ratings.append(element)
 
-        LOG.debug("Reached beginning of movie list")
-        # Go through each line in the file
-        for line in input_file:
-            # The regex parsing.
-            # Returns a match which groups are formatted as follows:
-            # (votes, rating, title, year|????, nr, title of episode, v|vg|tv)
-            match = regex.match(line)
-            if match:
-                # Format it, first entry is movie characteristics,
-                # touple is votecount and score
-                grps = match.groups()
-                mov = Movie(grps[2],
-                            int(grps[3]) if grps[3] != '????' else None,
-                            *grps[4:7])
-                element = (mov,
-                           (int(match.groups()[0]), float(match.groups()[1])))
-                ratings.append(element)
-            else:
-                # If the long line with '----' is reached, the list is over
-                line = next(input_file)
-                if line[0] == '-':
-                    LOG.debug("Reached end of ratings list")
-                    break
-                else:
-                    # Oh oh, a movie couldn't be parsed!
-                    raise NotImplementedError(
-                        "There's a movie that coudnt't be parsed! "
-                        "I don't know what to do!\n"
-                        "Error occured before this line: " + line)
-    LOG.info("Finised parsing ratings")
+    LOG.info("Finised parsing ratings list")
     return ratings
 
 
@@ -90,54 +162,15 @@ def get_genres(file: str) -> list:
         file: The path to the genres.list file
 
     Returns:
-        A list of tuples: (Movie, ['list', 'of', 'genres'])
+        A list of tuples of type: (Movie, ['list', 'of', 'genres'])
     """
 
-    regex = re.compile(
-        r"(.*)"                      # (Title (Movie/Series))
-        r"\s\("
-        r"([\d\?]{4})"               # (Year|????)
-        r"/?([XIVLMD]+)?\)"          # opt. (Nr. of movies with same title?)
-        r"(?:\s\{([^{}]+)\})?"       # optional (Title of Episode)
-        r"(?:\s\{\{SUSPENDED\}\})?"  # optional suspended tag
-        r"(?:\s\((VG|TV|V)\))?"      # optional TV|V tag for tv/video releases
-        r"\s+"
-        r"(.*)")                     # (Genre)
-    genres = []  # type: list
+    pattern = r"(.*)"  # (Keywords)
+    start = 'THE GENRES LIST'
+    skip = 2
+    stop = ''  # End of list equals end of file
 
-    # Open up ratings
-    LOG.debug("Opening genres file...")
-    with open(file, 'r') as input_file:
-        # Skip all lines until the main list starts
-        for line in input_file:
-            if 'THE GENRES LIST' in line:
-                break
-        next(input_file)
-        next(input_file)
-
-        for line in input_file:
-            match = regex.match(line)
-            if match:
-                tpl = match.groups()
-                mov = Movie(tpl[0], int(tpl[1]) if tpl[1] != '????' else None,
-                            *tpl[2:5])
-                # Assuming that entries for the same movie are grouped together
-                # If last movie is the same as the current one
-                if genres and genres[-1][0] == mov:
-                    # Add current genre to existings movies
-                    genres[-1][1].append(tpl[5])
-                else:
-                    # Or create new entry if movie does not exist
-                    element = (mov, [tpl[5]])
-                    genres.append(element)
-            else:
-                # Oh oh, a movie couldn't be parsed!
-                raise NotImplementedError(
-                    "There's a movie that coudnt't be parsed! "
-                    "I don't know what to do!\n"
-                    "Error occured before this line: " + line)
-    LOG.info("Finised parsing genres")
-    return genres
+    return get_movie_matches(file, pattern, start, skip, stop)
 
 
 def get_keywords(file: str) -> list:
@@ -147,54 +180,15 @@ def get_keywords(file: str) -> list:
         file: The path to the keywords.list file
 
     Returns:
-        A list of tuples: (Movie, ['list', 'of', 'keywords'])
+        A list of tuples ot type: (Movie, ['list', 'of', 'keywords'])
     """
 
-    regex = re.compile(
-        r"(.*)"                      # (Title (Movie/Series))
-        r"\s\("
-        r"([\d\?]{4})"               # (Year|????)
-        r"/?([XIVLMD]+)?\)"          # opt. (Nr. of movies with same title?)
-        r"(?:\s\{([^{}]+)\})?"       # optional (Title of Episode)
-        r"(?:\s\{\{SUSPENDED\}\})?"  # optional suspended tag
-        r"(?:\s\((VG|TV|V)\))?"      # optional TV|V tag for tv/video releases
-        r"\s+"
-        r"(.*)")                     # (Genre)
-    keywords = []  # type: list
+    pattern = r"(.*)"  # (Keywords)
+    start = 'THE KEYWORDS LIST'
+    skip = 2
+    stop = ''  # End of list equals end of file
 
-    # Open up ratings
-    LOG.debug("Opening keywords file...")
-    with open(file, 'r') as input_file:
-        # Skip all lines until the main list starts
-        for line in input_file:
-            if 'THE KEYWORDS LIST' in line:
-                break
-        next(input_file)
-        next(input_file)
-
-        for line in input_file:
-            match = regex.match(line)
-            if match:
-                tpl = match.groups()
-                mov = Movie(tpl[0], int(tpl[1]) if tpl[1] != '????' else None,
-                            *tpl[2:5])
-                # Assuming that entries for the same movie are grouped together
-                # If last movie is the same as the current one
-                if keywords and keywords[-1][0] == mov:
-                    # Add current keyword to existing movie
-                    keywords[-1][1].append(tpl[5])
-                else:
-                    # Or create new entry if movie does not exist
-                    element = (mov, [tpl[5]])
-                    keywords.append(element)
-            else:
-                # Oh oh, a movie couldn't be parsed!
-                raise NotImplementedError(
-                    "There's a movie that coudnt't be parsed! "
-                    "I don't know what to do!\n"
-                    "Error occured before this line: " + line)
-    LOG.info("Finised parsing keywords")
-    return keywords
+    return get_movie_matches(file, pattern, start, skip, stop)
 
 
 def get_languages(file: str) -> list:
@@ -204,59 +198,38 @@ def get_languages(file: str) -> list:
         file: The path to the language.list file
 
     Returns:
-        A list of tuples: (Movie, "Language")
+        A list of tuples of type: (Movie, ["Language"])
     """
 
-    regex = re.compile(
-        r"(.*)"                      # (Title (Movie/Series))
-        r"\s\("
-        r"([\d\?]{4})"               # (Year|????)
-        r"/?([XIVLMD]+)?\)"          # opt. (Nr. of movies with same title?)
-        r"(?:\s\{([^{}]+)\})?"       # optional (Title of Episode)
-        r"(?:\s\{\{SUSPENDED\}\})?"  # optional suspended tag
-        r"(?:\s\((VG|TV|V)\))?"      # optional TV|V tag for tv/video releases
-        r"\s+"
-        r"(.*)"                      # (Languages)
-        r"(?:\s+.*)?")               # opt. additional info
-    languages = []  # type: list
+    pattern = (r"(.*)"                      # (Languages)
+               r"(?:\s+.*)?")               # opt. additional info
+    start = 'LANGUAGE LIST'
+    skip = 1
+    stop = '------------------------------------------------------------------'
 
-    # Open up ratings
-    LOG.debug("Opening languages file...")
-    with open(file, 'r') as input_file:
-        # Skip all lines until the main list starts
-        for line in input_file:
-            if 'LANGUAGE LIST' in line:
-                break
-        next(input_file)
+    return get_movie_matches(file, pattern, start, skip, stop)
 
-        for line in input_file:
-            match = regex.match(line)
-            if match:
-                tpl = match.groups()
-                mov = Movie(tpl[0], int(tpl[1]) if tpl[1] != '????' else None,
-                            *tpl[2:5])
-                # Assuming that entries for the same movie are grouped together
-                # If last movie is the same as the current one
-                if languages and languages[-1][0] == mov:
-                    # Add current language to existing movie
-                    languages[-1][1].append(tpl[5])
-                else:
-                    # Or create new entry if movie does not exist
-                    element = (mov, [tpl[5]])
-                    languages.append(element)
-            else:
-                # If the long line with '----' is reached, the list is over
-                if line[0] == '-':
-                    LOG.debug("Reached end of language list")
-                    break
-                else:
-                    # Oh oh, a movie couldn't be parsed!
-                    raise NotImplementedError(
-                        "There's a movie that coudnt't be parsed! "
-                        "I don't know what to do!\n"
-                        "Error occured before this line: " + line)
-    LOG.info("Finised parsing languages")
-    return languages
+
+def combine_lists(*lists) -> list:
+    dict_lists = []
+    set_lists = []
+    for index in range(len(lists)):
+        dict_lists.append(dict(lists[index]))
+        set_lists.append(set(dict_lists[index]))
+
+    combined_set = set_lists[0]
+    for index in range(1, len(set_lists)):
+        combined_set = combined_set & set_lists[index]
+
+    return_list = []
+    for iden in combined_set:
+        combined_entry = [iden]
+        for dct in dict_lists:
+            combined_entry.append(dct[iden])
+        return_list.append(combined_entry)
+
+    return return_list
+
 
 # --------------------------------IF EXECUTED-------------------------------- #
 if __name__ == '__main__':
