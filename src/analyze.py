@@ -1,6 +1,6 @@
 import logging
 
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 # Outdated
@@ -32,7 +32,7 @@ def get_totals(ratings, restrict_votes=0):
     ratings_sum = 0
     votes_sum = 0
     movies_sum = 0
-    log.info("Starting loop to summarize votes/ratings/number")
+    LOG.info("Starting loop to summarize votes/ratings/number")
     for movie in ratings:
         votes = int(movie[0])
         if (votes >= restrict_votes):
@@ -44,9 +44,9 @@ def get_totals(ratings, restrict_votes=0):
 
 # Outdated
 def print_avg_tot(ratings, restrict_votes=0):
-    log.info("Getting the totals first...")
+    LOG.info("Getting the totals first...")
     movies_sum, votes_sum, ratings_sum = get_totals(ratings, restrict_votes)
-    log.info("Print out the averages and totals")
+    LOG.info("Print out the averages and totals")
     print("Total number of movies with >={} votes: {}".format(
         restrict_votes, movies_sum))
     print("Total number of votes for movies with >={} votes: {}".format(
