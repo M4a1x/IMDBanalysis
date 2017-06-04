@@ -9,23 +9,30 @@ KEYWORDS_PATH = os.path.abspath('../database/selection/keywords.list')
 LANGUAGES_PATH = os.path.abspath('../database/selection/language.list')
 
 
-def test_extract_function(function, path):
+def test_extract_function(function, arg):
     """Test the extract functions of the extract module.
 
        Print time, size, length, first and last element.
     """
+    data = []
     starttime = time.process_time()
-    data = function(path)
+    if isinstance(arg, str):
+        data = function(arg)
+    else:
+        data = function(*arg)
     dattime = time.process_time() - starttime
+    
     print("{}: Size: {}. Length: {}. Time: {}.".format(
         function.__name__, getsizeof(data), len(data), dattime))
     print("{}: First Element: {}".format(function.__name__, data[0]))
     print("{}: Last Element: {}".format(function.__name__, data[-1]))
+    return data
 
-#test_extract_function(get_genres, GENRES_PATH)
-#test_extract_function(get_keywords, KEYWORDS_PATH)
-test_extract_function(get_languages, LANGUAGES_PATH)
-# test_extract_function(get_ratings, RATINGS_PATH)
+gg = test_extract_function(get_genres, GENRES_PATH)
+gk = test_extract_function(get_keywords, KEYWORDS_PATH)
+gl =  test_extract_function(get_languages, LANGUAGES_PATH)
+gr =  test_extract_function(get_ratings, RATINGS_PATH)
+test_extract_function(combine_lists, (gg, gk, gl, gr))
 
 
 # list1_dict = dict(GR)
