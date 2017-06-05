@@ -4,8 +4,18 @@ To-Do:
 
 Questions:
 * Define the concepts
+  - What makes a good movie. Get indicators for a quality movie as indicated by ratings, budget, gross, ...
+  - See what kind of information is correlated (budget-votes, )
+  - Get a generator for ratings/gross if possible 
 * Define workflows (import, process, visualize, ...)
+  - Import data, combine data
+  - Filter Data
+  - analyze (statistical, ...)
+  - visualize
+  - document
 * Code I need to  write, libraries I can use.
+  - imdb api libraries mostly out of date. Not usable anymore -> write myself
+  - 
 * How to present?
 
 
@@ -62,3 +72,5 @@ Libraries:
 * SQLAlchemy, SQLObject, (urllib2)[deprecated] => requests
 
 
+Further ideas:
+* Use references.list to make a graph of connections. Evaluate connections, look for bias.

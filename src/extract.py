@@ -1,6 +1,9 @@
 """ Provides methods to extract data from the imdb dataset """
 import logging
 import re
+import pickle
+import os
+import gzip  # Because SPEED is priority here.
 from collections import namedtuple
 LOG = logging.getLogger(__name__)
 
@@ -12,6 +15,18 @@ Movie.counter.__doc__ = "Counter for movies with the same name"
 Movie.episode.__doc__ = "Title of the episode"
 Movie.tag.__doc__ = """VG|TV|V
                        indicating videogame, tv release, video respectively"""
+
+Tech = namedtuple('Tech', ['cam', 'met', 'ofm', 'pfm', 'rat', 'pcs', 'lab'])
+Tech.__doc__ += ": Container for technicals.list information of a movie"
+Tech.cam.__doc__ = "Camera model and Lens information"
+Tech.met.__doc__ = "Length of a film in meter"
+Tech.ofm.__doc__ = ("Film negative format in mm or 'Video' with an additional"
+                    "attribute for the TV standard")
+Tech.pfm.__doc__ = ("Printed film format in mm or 'Video' with an additional"
+                    "attribute for the TV standard")
+Tech.rat.__doc__ = "Aspect Ratio, width to height (_.__ : 1)"
+Tech.pcs.__doc__ = "Cinematographic process or video system"
+Tech.lab.__doc__ = "Laboratory (Syntax: Laboratory name, Location, Country)"
 
 MOVIE_PATTERN = (
     r"(.*)"                      # (Title (Movie/Series))
@@ -210,6 +225,70 @@ def get_languages(file: str) -> list:
     return get_movie_matches(file, pattern, start, skip, stop)
 
 
+def get_locations(file: str) -> list:
+    """Reads in the locations.list file from the imdb interface dump
+
+    Args:
+        file: path to the file
+
+    Returns:
+        A list of tuples of type (Movie, ["Location A", "Location B", ...])
+    """
+
+    pattern = r"\(?([^(\n\t]+)\)?(?:\s*\(.*\))?"
+    start = 'LOCATIONS LIST'
+    skip = 1
+    stop = '------------------------------------------------------------------'
+
+    return get_movie_matches(file, pattern, start, skip, stop)
+
+
+def get_running_times(file: str) -> list:
+    """Reads in the running-times.list file from the imdb interface dump
+
+    Args:
+        file: path to the file
+
+    Returns:
+        A list of tuples of type (Movie, [Time in Minutes])
+    """
+    pattern = r"[^\d]*(\d+)"
+    start = 'RUNNING TIMES LIST'
+    skip = 1
+    stop = '------------------------------------------------------------------'
+    return get_movie_matches(file, pattern, start, skip, stop)
+
+
+def get_technicals(file: str) -> list:
+    """Reads in the technical.list
+
+    Args:
+        file: path to the file
+
+    Returns:
+        A list of tuples of type (Movie, Tech)
+    Maybe this is not useful..."""
+    pass
+
+
+def get_businesses(file: str) -> list:
+    pass
+
+
+def get_directors(file: str) -> list:
+    pass
+
+
+def get_actors(file: str) -> list:
+    """Very large list, maybe later.."""
+    pass
+
+
+def get_actresses(file: str) -> list:
+    """Also very large list, maybe later.."""
+    pass
+
+
 def combine_lists(*lists) -> list:
     dict_lists = []
     set_lists = []
@@ -229,6 +308,44 @@ def combine_lists(*lists) -> list:
         return_list.append(combined_entry)
 
     return return_list
+
+
+def save(directory: str, **lists) -> None:
+    """Dump the imdb extracted lists as pickle objects to disk
+
+    Data can be restored with the "load()" function
+    Args:
+        directory: The directory to store the list dumps in
+        *lists: The lists to be saved, key is the filename for the given list
+    """
+    if not os.path.isdir(directory):
+        raise IOError("Specified directory {} doesn't exist".format(directory))
+
+    for filename, imdblist in lists.items():
+        filepath = os.path.join(directory, filename + '.pickle.gz')
+        with gzip.open(filepath, 'wb') as output_file:
+            pickle.dump(imdblist, output_file, pickle.HIGHEST_PROTOCOL)
+
+
+def load(directory: str, *lists) -> list:
+    """Load the pickled lists back into memory
+
+    Data can be saved with the "save()" function
+    Args:
+        directory: The directory which contains the files
+        lists: A str list of filenames to load
+    """
+    if not os.path.isdir(directory):
+        raise IOError("Specified directory {} doesn't exist".format(directory))
+
+    imdblists = []
+    for filename in lists:
+        filepath = os.path.join(directory, filename + '.pickle.gz')
+        if not os.path.isfile(filepath):
+            IOError("File {} doesn't exist".format(filepath))
+        with gzip.open(filepath, 'rb') as input_file:
+            imdblists.append(pickle.load(input_file))
+    return imdblists
 
 
 # --------------------------------IF EXECUTED-------------------------------- #
