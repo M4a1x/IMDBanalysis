@@ -7,6 +7,9 @@ import gzip  # Because SPEED is priority here.
 from collections import namedtuple
 LOG = logging.getLogger(__name__)
 
+# TODO: Change open() operations to directly act on .list.gz files instead of .list files
+# TODO: Change all to generator functions, to reduce memory usage
+
 Movie = namedtuple('Movie', ['title', 'year', 'counter', 'episode', 'tag'])
 Movie.__doc__ += ": Container for movie identification data."
 Movie.title.__doc__ = "Title of the movie/tv series/game/video/..."
@@ -28,18 +31,21 @@ Tech.rat.__doc__ = "Aspect Ratio, width to height (_.__ : 1)"
 Tech.pcs.__doc__ = "Cinematographic process or video system"
 Tech.lab.__doc__ = "Laboratory (Syntax: Laboratory name, Location, Country)"
 
+TECH_DICT = {'cam': 0, 'met': 1, 'ofm': 2, 'pfm': 3,
+             'rat': 4, 'pcs': 5, 'lab': 6}
+
 MOVIE_PATTERN = (
-    r"(.*)"                      # (Title (Movie/Series))
+    r"(.*)"                       # (Title (Movie/Series))
     r"\s\("
-    r"([\d\?]{4})"               # (Year|????)
-    r"/?([XIVLMD]+)?\)"          # opt. (Nr. of movies with same title?)
-    r"(?:\s\{([^{}]+)\})?"       # optional (Title of Episode)
-    r"(?:\s\{\{SUSPENDED\}\})?"  # optional suspended tag
-    r"(?:\s\((VG|TV|V)\))?")     # optional TV|V tag for tv/video releases
+    r"([\d\?]{4})"                # (Year|????)
+    r"/?([XIVLMD]+)?\)"           # opt. (Nr. of movies with same title?)
+    r"(?:\s\{([^{}]+)\})?"        # optional (Title of Episode)
+    r"(?:\s\((VG|TV|V)\))?"       # optional TV|V tag for tv/video releases
+    r"(?:\s\{\{SUSPENDED\}\})?")  # optional suspended tag
 
 
 def get_matches(file: str, regex: str,
-                start: str, skip: int, stop: str) -> list:
+                start: str, skip: int) -> list:
     """Reads in a *.list file from imdb interface dump and performs regex
        on every line
 
@@ -50,7 +56,6 @@ def get_matches(file: str, regex: str,
                main list (skip preceeding comments/metadata)
         skip: Number of lines to skip after 'start'
               to reach the beginning of the main list
-        stop: Indicates the stop of the main list (omit trailing comments/meta)
 
     Returns:
         A list of tuples: [(Data1), (Data2), ...]
@@ -79,7 +84,7 @@ def get_matches(file: str, regex: str,
                 # Skip possible empty lines
                 while line == '\n':
                     line = next(input_file)
-                if stop in line:
+                if '-------------------------------------------------' in line:
                     LOG.debug("Reached end of list")
                     break
                 else:
@@ -88,12 +93,13 @@ def get_matches(file: str, regex: str,
                         "There's a movie that coudnt't be parsed! "
                         "I don't know what to do!\n"
                         "Error occured on this line: " + line)
+    # Will finish without error if file just reaches eof
     LOG.info("Finised parsing list")
     return return_list
 
 
 def get_movie_matches(file: str, data_regex: str,
-                      start: str, skip: int, stop: str) -> list:
+                      start: str, skip: int) -> list:
     """Reads in a *.list file from imdb interface dump and performs regex
 
     This method provides a unified way to read in the *.list files which are in
@@ -111,8 +117,6 @@ def get_movie_matches(file: str, data_regex: str,
         skip: Number of lines to skip after 'start'
               to reach the beginning of the main list
 
-        stop: Indicates the stop of the main list (omit trailing comments/meta)
-
     Returns:
         A list of tuples of type: (Movie, [Data])
     """
@@ -120,7 +124,7 @@ def get_movie_matches(file: str, data_regex: str,
     movie_list = []  # type: list
     pattern = MOVIE_PATTERN + r"\s+" + data_regex
 
-    for line in get_matches(file, pattern, start, skip, stop):
+    for line in get_matches(file, pattern, start, skip):
         mov = Movie(line[0], int(line[1]) if line[1] != '????' else None,
                     *line[2:5])
         # Assuming that entries for the same movie are grouped together
@@ -158,9 +162,8 @@ def get_ratings(file: str) -> list:
     pattern = ratings_pattern + r"\s+" + MOVIE_PATTERN
     start = 'MOVIE RATINGS REPORT'
     skip = 2
-    stop = '------------------------------------------------------------------'
 
-    for line in get_matches(file, pattern, start, skip, stop):
+    for line in get_matches(file, pattern, start, skip):
         mov = Movie(line[2], int(line[3]) if line[3] != '????' else None,
                     *line[4:7])
         element = (mov, (int(line[0]), float(line[1])))
@@ -183,9 +186,8 @@ def get_genres(file: str) -> list:
     pattern = r"(.*)"  # (Keywords)
     start = 'THE GENRES LIST'
     skip = 2
-    stop = ''  # End of list equals end of file
 
-    return get_movie_matches(file, pattern, start, skip, stop)
+    return get_movie_matches(file, pattern, start, skip)
 
 
 def get_keywords(file: str) -> list:
@@ -201,9 +203,8 @@ def get_keywords(file: str) -> list:
     pattern = r"(.*)"  # (Keywords)
     start = 'THE KEYWORDS LIST'
     skip = 2
-    stop = ''  # End of list equals end of file
 
-    return get_movie_matches(file, pattern, start, skip, stop)
+    return get_movie_matches(file, pattern, start, skip)
 
 
 def get_languages(file: str) -> list:
@@ -220,9 +221,8 @@ def get_languages(file: str) -> list:
                r"(?:\s+.*)?")               # opt. additional info
     start = 'LANGUAGE LIST'
     skip = 1
-    stop = '------------------------------------------------------------------'
 
-    return get_movie_matches(file, pattern, start, skip, stop)
+    return get_movie_matches(file, pattern, start, skip)
 
 
 def get_locations(file: str) -> list:
@@ -238,9 +238,8 @@ def get_locations(file: str) -> list:
     pattern = r"\(?([^(\n\t]+)\)?(?:\s*\(.*\))?"
     start = 'LOCATIONS LIST'
     skip = 1
-    stop = '------------------------------------------------------------------'
 
-    return get_movie_matches(file, pattern, start, skip, stop)
+    return get_movie_matches(file, pattern, start, skip)
 
 
 def get_running_times(file: str) -> list:
@@ -255,8 +254,8 @@ def get_running_times(file: str) -> list:
     pattern = r"[^\d]*(\d+)"
     start = 'RUNNING TIMES LIST'
     skip = 1
-    stop = '------------------------------------------------------------------'
-    return get_movie_matches(file, pattern, start, skip, stop)
+
+    return get_movie_matches(file, pattern, start, skip)
 
 
 def get_technicals(file: str) -> list:
@@ -267,9 +266,31 @@ def get_technicals(file: str) -> list:
 
     Returns:
         A list of tuples of type (Movie, Tech)
-    Maybe this is not useful..."""
-    pass
+    """
 
+    pattern = (MOVIE_PATTERN + r"\s+" +
+               r"(CAM|MET|OFM|PFM|RAT|PCS|LAB):([^(\t\n/]*)")
+    start = 'TECHNICAL LIST'
+    skip = 3
+
+    movie_list = []  # type: list
+
+    match_list = get_matches(file, pattern, start, skip)
+
+    for line in match_list:
+        mov = Movie(line[0], int(line[1]) if line[1] != '????' else None,
+                    *line[2:5])
+        index = TECH_DICT[line[5].lower()]  # TODO: This is UGLY
+        data = line[6][:-1] if line[6][:-1] == ' ' else line[6]
+
+        if movie_list and movie_list[-1][0] == mov:
+            movie_list[-1][1][index].append(data)  # TODO: This too!
+        else:
+            tec = Tech(*[[] for i in range(7)])
+            tec[index].append(data)  # TODO: This is UGLY
+            entry = (mov, tec)
+            movie_list.append(entry)
+    return movie_list
 
 def get_businesses(file: str) -> list:
     pass
