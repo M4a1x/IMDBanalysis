@@ -4,11 +4,13 @@ import re
 import pickle
 import os
 import gzip  # Because SPEED is priority here.
+import urllib.request
 from collections import namedtuple
 LOG = logging.getLogger(__name__)
 
 # TODO: Change open() operations to directly act on .list.gz files instead of .list files
 # TODO: Change all to generator functions, to reduce memory usage
+# TODO: Implement missing functions
 
 Movie = namedtuple('Movie', ['title', 'year', 'counter', 'episode', 'tag'])
 Movie.__doc__ += ": Container for movie identification data."
@@ -31,8 +33,25 @@ Tech.rat.__doc__ = "Aspect Ratio, width to height (_.__ : 1)"
 Tech.pcs.__doc__ = "Cinematographic process or video system"
 Tech.lab.__doc__ = "Laboratory (Syntax: Laboratory name, Location, Country)"
 
-TECH_DICT = {'cam': 0, 'met': 1, 'ofm': 2, 'pfm': 3,
-             'rat': 4, 'pcs': 5, 'lab': 6}
+TECH_DICT = {k: v for v, k in enumerate(Tech._fields)}
+
+
+Business = namedtuple('Business', ['bt', 'gr', 'ow', 'rt',
+                                   'ad', 'sd', 'pd', 'st', 'cp', 'wg'])
+Business.__doc__ += ": Container for business and economic data about a movie"
+Business.bt.__doc__ = "Budget"
+Business.gr.__doc__ = "Box Office Gross"
+Business.ow.__doc__ = "Opening Weekends Box Office Gross"
+Business.rt.__doc__ = "Rentals (money that goes back to the distributor)"
+Business.ad.__doc__ = "Admissions (# of Tickets sold"
+Business.sd.__doc__ = "Shootings Dates"
+Business.pd.__doc__ = "Production Dates"
+Business.st.__doc__ = "Studio where the movie was filmed"
+Business.cp.__doc__ = "Copyright Holder"
+Business.wg.__doc__ = "Weekend Gross"
+
+BUSINESS_DICT = {k: v for v, k in enumerate(Business._fields)}
+
 
 MOVIE_PATTERN = (
     r"(.*)"                       # (Title (Movie/Series))
@@ -42,6 +61,10 @@ MOVIE_PATTERN = (
     r"(?:\s\{([^{}]+)\})?"        # optional (Title of Episode)
     r"(?:\s\((VG|TV|V)\))?"       # optional TV|V tag for tv/video releases
     r"(?:\s\{\{SUSPENDED\}\})?")  # optional suspended tag
+
+BASE_URL = "ftp://ftp.fu-berlin.de/pub/misc/movies/database/"  # Default URL
+FILE_LIST = ('ratings', 'genres', 'keywords', 'language',
+             'locations', 'running_times', 'technical', 'business')
 
 
 def get_matches(file: str, regex: str,
@@ -286,17 +309,66 @@ def get_technicals(file: str) -> list:
         if movie_list and movie_list[-1][0] == mov:
             movie_list[-1][1][index].append(data)  # TODO: This too!
         else:
-            tec = Tech(*[[] for i in range(7)])
+            tec = Tech(*[[] for i in range(len(Tech._fields))])
             tec[index].append(data)  # TODO: This is UGLY
             entry = (mov, tec)
             movie_list.append(entry)
     return movie_list
 
 def get_businesses(file: str) -> list:
-    pass
+    """ Get business information from business.list
+
+    Args:
+        file: The path to the file
+
+    Returns
+        A list of tuples of type (Movie, Business)
+    """
+
+    pattern = r"(BT|GR|OW|RT|AD|SD|PD|ST|CP|WG):\s(.*)"
+
+    movie_list = []
+
+    LOG.debug("Opening list file...")
+    with open(file, 'r') as input_file:
+        # Skip all lines until the start str (skip comments/meta)
+        for line in input_file:
+            if line == 'BUSINESS LIST\n':
+                break
+        # Skip 'skip' lines to main body
+        for _ in range(2):
+            next(input_file)
+
+        for line in input_file:  # Loop over movie entries
+            if line == '\n':
+                continue
+            if '-----------------------------------------------------' in line:
+                break
+            bsns = Business(*[[] for x in range(len(Business._fields))])
+            title = re.match(MOVIE_PATTERN, line[4:]).groups()  # First line always MV
+            mov = Movie(title[0], int(title[1]) if title[1] != '????' else None,
+                        *title[2:5])
+
+            for entry in input_file:  # Looping over the entry of one movie
+                if entry == '\n':
+                    continue
+                if '------------------------------------------------' in entry:
+                    break
+                result = re.match(pattern, entry).groups()
+                index = BUSINESS_DICT[result[0].lower()]
+                bsns[index].append(result[1])
+
+            movie_list.append((mov, bsns))
+    return movie_list;
 
 
 def get_directors(file: str) -> list:
+    """Not important.?"""
+    pass
+
+
+def get_movie_links(file: str) -> list:
+    """No time I guess."""
     pass
 
 
@@ -311,6 +383,11 @@ def get_actresses(file: str) -> list:
 
 
 def combine_lists(*lists) -> list:
+    """Combine the provided lists into one file. Drops all not shared entries
+
+    Args:
+        lists: The lists to combine
+    """
     dict_lists = []
     set_lists = []
     for index in range(len(lists)):
@@ -329,6 +406,32 @@ def combine_lists(*lists) -> list:
         return_list.append(combined_entry)
 
     return return_list
+
+
+def download_data(directory: str, url: str = BASE_URL,
+                  files: tuple = FILE_LIST) -> None:
+    """Download the specified list files from the imdb database
+
+    Args:
+        directory: The directory to save the files in. Must exist
+        url: The url to download from. Default is berlin mirror
+        files: A tuple of filenames to download (e.g. genres, ratings, ...)
+    """
+    if not os.path.exists(directory):
+        raise IOError("This path doesn't exist!")
+
+    if not os.path.isdir(directory):
+        raise IOError("This is not a directory!")
+
+    LOG.info("Starting download...")
+    for file in FILE_LIST:
+        path = os.path.join(directory, file + '.list.gz')
+        url_full = BASE_URL + file + '.list.gz'
+        if os.path.exists(path):
+            raise IOError("File already exists!")
+        with open(path, 'wb') as output_file:
+            urllib.request.urlretrieve(url_full, path)
+        LOG.info("Finised downloading " + path)
 
 
 def save(directory: str, **lists) -> None:

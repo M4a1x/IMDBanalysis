@@ -3,6 +3,8 @@ import time
 from sys import getsizeof
 from extract import *
 
+logging.basicConfig(level=logging.DEBUG)
+
 BASE_PATH = os.path.abspath('../database/selection/')
 PICKLE_PATH = os.path.abspath('../database/pickle/')
 RATINGS_PATH = os.path.abspath('../database/selection/ratings.list')
@@ -12,7 +14,7 @@ LANGUAGES_PATH = os.path.abspath('../database/selection/language.list')
 LOCATIONS_PATH = os.path.join(BASE_PATH, 'locations.list')
 RUNNING_TIMES_PATH = os.path.join(BASE_PATH, 'running-times.list')
 TECHNICALS_PATH = os.path.join(BASE_PATH, 'technical.list')
-
+BUSINESSES_PATH = os.path.join(BASE_PATH, 'business.list')
 
 def test_extract_function(function, arg):
     """Test the extract functions of the extract module.
@@ -40,6 +42,7 @@ grat =  test_extract_function(get_ratings, RATINGS_PATH)
 gloc = test_extract_function(get_locations, LOCATIONS_PATH)
 grun = test_extract_function(get_running_times, RUNNING_TIMES_PATH)
 gt = test_extract_function(get_technicals, TECHNICALS_PATH)
+gb = test_extract_function(get_businesses, BUSINESSES_PATH)
 combine = test_extract_function(combine_lists, (gg, gk, gl, gr))
 
 starttime = time.process_time()
@@ -48,3 +51,5 @@ gg, gk, glang, grat, gloc, grun, gt = load(PICKLE_PATH, "genres", "keywords", "l
 dattime = time.process_time() - starttime
 
 combine = test_extract_function(combine_lists, (gg, gk, glang, grat, gloc, grun, gt))
+
+download_data(BASE_PATH)
