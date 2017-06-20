@@ -9,7 +9,7 @@ from collections import namedtuple
 LOG = logging.getLogger(__name__)
 
 # TODO: Change open() operations to directly act on .list.gz files instead of .list files
-# TODO: Change all to generator functions, to reduce memory usage
+# TODO: Change combine function to reduce memory usage
 # TODO: Implement missing functions
 
 Movie = namedtuple('Movie', ['title', 'year', 'counter', 'episode', 'tag'])
@@ -84,16 +84,14 @@ def get_matches(file: str, regex: str,
         A list of tuples: [(Data1), (Data2), ...]
     """
 
-    return_list = []  # type: list
-
     # Open up *.list file
-    LOG.debug("Opening list file...")
+    LOG.debug("Opening list file {}...".format(file))
     with open(file, 'r') as input_file:
         # Skip all lines until the start str (skip comments/meta)
         for line in input_file:
             if start in line:
                 break
-        # Skip 'skip' lines to main body
+        # Skip 'skip' nr of lines to main body
         for _ in range(skip):
             next(input_file)
 
@@ -101,14 +99,14 @@ def get_matches(file: str, regex: str,
         for line in input_file:
             match = re.match(regex, line)
             if match:
-                return_list.append(match.groups())
+                yield match.groups()
             else:
                 # If the long stop line is reached, the main list is over
                 # Skip possible empty lines
                 while line == '\n':
                     line = next(input_file)
                 if '-------------------------------------------------' in line:
-                    LOG.debug("Reached end of list")
+                    LOG.debug("Reached end of list {}".format(file))
                     break
                 else:
                     # It's no the stopline! A movie couldn't be parsed!
@@ -117,8 +115,7 @@ def get_matches(file: str, regex: str,
                         "I don't know what to do!\n"
                         "Error occured on this line: " + line)
     # Will finish without error if file just reaches eof
-    LOG.info("Finised parsing list")
-    return return_list
+    LOG.info("Finised parsing list {}".format(file))
 
 
 def get_movie_matches(file: str, data_regex: str,
@@ -147,21 +144,22 @@ def get_movie_matches(file: str, data_regex: str,
     movie_list = []  # type: list
     pattern = MOVIE_PATTERN + r"\s+" + data_regex
 
+    LOG.debug("Start parsing the regexed lines from {}".format(file))
+
+    entry = ()
     for line in get_matches(file, pattern, start, skip):
         mov = Movie(line[0], int(line[1]) if line[1] != '????' else None,
                     *line[2:5])
-        # Assuming that entries for the same movie are grouped together
-        # If last movie is the same as the current one
-        if movie_list and movie_list[-1][0] == mov:
-            # Add current data to existing movie
-            movie_list[-1][1].append(line[5])
-        else:
-            # Or create new entry if movie does not exist
+        if not entry:
             entry = (mov, [line[5]])
-            movie_list.append(entry)
+        elif mov == entry[0]:
+            entry[1].append(line[5])
+        else:
+            yield entry
+            entry = (mov, [line[5]])
+    yield entry  # Yield the last entry
 
-    LOG.info("Finised parsing movie type list")
-    return movie_list
+    LOG.info("Finised parsing movie type list {}".format(file))
 
 
 def get_ratings(file: str) -> list:
@@ -180,20 +178,18 @@ def get_ratings(file: str) -> list:
         r"\s+"
         r"(\d?\d\.\d)")              # (Rating)
 
-    ratings = []  # type: list
-
     pattern = ratings_pattern + r"\s+" + MOVIE_PATTERN
     start = 'MOVIE RATINGS REPORT'
     skip = 2
 
+    LOG.debug("Parsing ratings")
     for line in get_matches(file, pattern, start, skip):
         mov = Movie(line[2], int(line[3]) if line[3] != '????' else None,
                     *line[4:7])
         element = (mov, (int(line[0]), float(line[1])))
-        ratings.append(element)
+        yield element
 
     LOG.info("Finised parsing ratings list")
-    return ratings
 
 
 def get_genres(file: str) -> list:
@@ -210,7 +206,8 @@ def get_genres(file: str) -> list:
     start = 'THE GENRES LIST'
     skip = 2
 
-    return get_movie_matches(file, pattern, start, skip)
+    for entry in get_movie_matches(file, pattern, start, skip):
+        yield entry
 
 
 def get_keywords(file: str) -> list:
@@ -227,7 +224,8 @@ def get_keywords(file: str) -> list:
     start = 'THE KEYWORDS LIST'
     skip = 2
 
-    return get_movie_matches(file, pattern, start, skip)
+    for entry in get_movie_matches(file, pattern, start, skip):
+        yield entry
 
 
 def get_languages(file: str) -> list:
@@ -245,7 +243,8 @@ def get_languages(file: str) -> list:
     start = 'LANGUAGE LIST'
     skip = 1
 
-    return get_movie_matches(file, pattern, start, skip)
+    for entry in get_movie_matches(file, pattern, start, skip):
+        yield entry
 
 
 def get_locations(file: str) -> list:
@@ -262,7 +261,8 @@ def get_locations(file: str) -> list:
     start = 'LOCATIONS LIST'
     skip = 1
 
-    return get_movie_matches(file, pattern, start, skip)
+    for entry in get_movie_matches(file, pattern, start, skip):
+        yield entry
 
 
 def get_running_times(file: str) -> list:
@@ -278,7 +278,8 @@ def get_running_times(file: str) -> list:
     start = 'RUNNING TIMES LIST'
     skip = 1
 
-    return get_movie_matches(file, pattern, start, skip)
+    for entry in get_movie_matches(file, pattern, start, skip):
+        yield entry
 
 
 def get_technicals(file: str) -> list:
@@ -296,24 +297,26 @@ def get_technicals(file: str) -> list:
     start = 'TECHNICAL LIST'
     skip = 3
 
-    movie_list = []  # type: list
-
-    match_list = get_matches(file, pattern, start, skip)
-
-    for line in match_list:
+    entry = ()
+    for line in get_matches(file, pattern, start, skip):
         mov = Movie(line[0], int(line[1]) if line[1] != '????' else None,
                     *line[2:5])
         index = TECH_DICT[line[5].lower()]  # TODO: This is UGLY
         data = line[6][:-1] if line[6][:-1] == ' ' else line[6]
 
-        if movie_list and movie_list[-1][0] == mov:
-            movie_list[-1][1][index].append(data)  # TODO: This too!
-        else:
-            tec = Tech(*[[] for i in range(len(Tech._fields))])
-            tec[index].append(data)  # TODO: This is UGLY
+        if not entry:
+            tec = Tech(*[[] for _ in Tech._fields])
+            tec[index].append(data)
             entry = (mov, tec)
-            movie_list.append(entry)
-    return movie_list
+        elif entry[0] == mov:
+            entry[1][index].append(data)
+        else:
+            yield entry
+            tec = Tech(*[[] for _ in Tech._fields])
+            tec[index].append(data)
+            entry = (mov, tec)
+    yield entry
+
 
 def get_businesses(file: str) -> list:
     """ Get business information from business.list
@@ -321,13 +324,11 @@ def get_businesses(file: str) -> list:
     Args:
         file: The path to the file
 
-    Returns
+    Returns:
         A list of tuples of type (Movie, Business)
     """
 
     pattern = r"(BT|GR|OW|RT|AD|SD|PD|ST|CP|WG):\s(.*)"
-
-    movie_list = []
 
     LOG.debug("Opening list file...")
     with open(file, 'r') as input_file:
@@ -344,7 +345,7 @@ def get_businesses(file: str) -> list:
                 continue
             if '-----------------------------------------------------' in line:
                 break
-            bsns = Business(*[[] for x in range(len(Business._fields))])
+            bsns = Business(*[[] for _ in Business._fields])
             title = re.match(MOVIE_PATTERN, line[4:]).groups()  # First line always MV
             mov = Movie(title[0], int(title[1]) if title[1] != '????' else None,
                         *title[2:5])
@@ -358,8 +359,7 @@ def get_businesses(file: str) -> list:
                 index = BUSINESS_DICT[result[0].lower()]
                 bsns[index].append(result[1])
 
-            movie_list.append((mov, bsns))
-    return movie_list;
+            yield (mov, bsns)
 
 
 def get_directors(file: str) -> list:
@@ -383,10 +383,13 @@ def get_actresses(file: str) -> list:
 
 
 def combine_lists(*lists) -> list:
-    """Combine the provided lists into one file. Drops all not shared entries
+    """Combine the provided lists into one file. Drops all not shared entries.
 
     Args:
         lists: The lists to combine
+
+    Returns:
+        Combined list
     """
     dict_lists = []
     set_lists = []
