@@ -68,7 +68,7 @@ FILE_LIST = ('ratings', 'genres', 'keywords', 'language',
 
 
 def get_matches(file: str, regex: str,
-                start: str, skip: int) -> list:
+                start: str, skip: int):
     """Reads in a *.list file from imdb interface dump and performs regex
        on every line
 
@@ -81,11 +81,11 @@ def get_matches(file: str, regex: str,
               to reach the beginning of the main list
 
     Returns:
-        A list of tuples: [(Data1), (Data2), ...]
+        Generator of tuples: [(Data1), (Data2), ...]
     """
 
     # Open up *.list file
-    LOG.debug("Opening list file {}...".format(file))
+    LOG.debug("Opening list file %s...", file)
     with open(file, 'r') as input_file:
         # Skip all lines until the start str (skip comments/meta)
         for line in input_file:
@@ -106,7 +106,7 @@ def get_matches(file: str, regex: str,
                 while line == '\n':
                     line = next(input_file)
                 if '-------------------------------------------------' in line:
-                    LOG.debug("Reached end of list {}".format(file))
+                    LOG.debug("Reached end of list %s", file)
                     break
                 else:
                     # It's no the stopline! A movie couldn't be parsed!
@@ -115,11 +115,11 @@ def get_matches(file: str, regex: str,
                         "I don't know what to do!\n"
                         "Error occured on this line: " + line)
     # Will finish without error if file just reaches eof
-    LOG.info("Finised parsing list {}".format(file))
+    LOG.info("Finised parsing list %s", file)
 
 
 def get_movie_matches(file: str, data_regex: str,
-                      start: str, skip: int) -> list:
+                      start: str, skip: int):
     """Reads in a *.list file from imdb interface dump and performs regex
 
     This method provides a unified way to read in the *.list files which are in
@@ -138,13 +138,12 @@ def get_movie_matches(file: str, data_regex: str,
               to reach the beginning of the main list
 
     Returns:
-        A list of tuples of type: (Movie, [Data])
+        Generator of tuples of type: (Movie, [Data])
     """
 
-    movie_list = []  # type: list
     pattern = MOVIE_PATTERN + r"\s+" + data_regex
 
-    LOG.debug("Start parsing the regexed lines from {}".format(file))
+    LOG.debug("Start parsing the regexed lines from %s", file)
 
     entry = ()
     for line in get_matches(file, pattern, start, skip):
@@ -159,17 +158,17 @@ def get_movie_matches(file: str, data_regex: str,
             entry = (mov, [line[5]])
     yield entry  # Yield the last entry
 
-    LOG.info("Finised parsing movie type list {}".format(file))
+    LOG.info("Finised parsing movie type list %s", file)
 
 
-def get_ratings(file: str) -> list:
+def get_ratings(file: str):
     """Reads in the ratings.list from imdb interface dump
 
     Args:
         file: The path to the ratings.list file
 
     Returns:
-        A list of tuples: (Movie, (votes, ratings))
+        Generator of tuples: (Movie, (votes, ratings))
     """
 
     ratings_pattern = (
@@ -182,7 +181,7 @@ def get_ratings(file: str) -> list:
     start = 'MOVIE RATINGS REPORT'
     skip = 2
 
-    LOG.debug("Parsing ratings")
+    LOG.debug("Parsing ratings...")
     for line in get_matches(file, pattern, start, skip):
         mov = Movie(line[2], int(line[3]) if line[3] != '????' else None,
                     *line[4:7])
@@ -192,33 +191,36 @@ def get_ratings(file: str) -> list:
     LOG.info("Finised parsing ratings list")
 
 
-def get_genres(file: str) -> list:
+def get_genres(file: str):
     """Reads in the genres.list file from imdb interface dump
 
     Args:
         file: The path to the genres.list file
 
     Returns:
-        A list of tuples of type: (Movie, ['list', 'of', 'genres'])
+        Generator of tuples of type: (Movie, ['list', 'of', 'genres'])
     """
 
+    LOG.debug("Parsing genres...")
     pattern = r"(.*)"  # (Keywords)
     start = 'THE GENRES LIST'
     skip = 2
 
     for entry in get_movie_matches(file, pattern, start, skip):
         yield entry
+    LOG.debug("Finished parsing genres...")
 
 
-def get_keywords(file: str) -> list:
+def get_keywords(file: str):
     """Reads in the keywords.list file from imdb interface dump
 
     Args:
         file: The path to the keywords.list file
 
     Returns:
-        A list of tuples ot type: (Movie, ['list', 'of', 'keywords'])
+        Generator of tuples ot type: (Movie, ['list', 'of', 'keywords'])
     """
+    LOG.debug("Parsing keywords...")
 
     pattern = r"(.*)"  # (Keywords)
     start = 'THE KEYWORDS LIST'
@@ -227,16 +229,19 @@ def get_keywords(file: str) -> list:
     for entry in get_movie_matches(file, pattern, start, skip):
         yield entry
 
+    LOG.debug("Finished parsing keywords")
 
-def get_languages(file: str) -> list:
+
+def get_languages(file: str):
     """Reads in the language.list file from imdb interface dump
 
     Args:
         file: The path to the language.list file
 
     Returns:
-        A list of tuples of type: (Movie, ["Language"])
+        Generator of tuples of type: (Movie, ["Language"])
     """
+    LOG.debug("Parsing languages...")
 
     pattern = (r"(.*)"                      # (Languages)
                r"(?:\s+.*)?")               # opt. additional info
@@ -246,16 +251,19 @@ def get_languages(file: str) -> list:
     for entry in get_movie_matches(file, pattern, start, skip):
         yield entry
 
+    LOG.debug("Finished parsing languages")
 
-def get_locations(file: str) -> list:
+
+def get_locations(file: str):
     """Reads in the locations.list file from the imdb interface dump
 
     Args:
         file: path to the file
 
     Returns:
-        A list of tuples of type (Movie, ["Location A", "Location B", ...])
+        Generator of tuples of type (Movie, ["Location A", "Location B", ...])
     """
+    LOG.debug("Parsing locations...")
 
     pattern = r"\(?([^(\n\t]+)\)?(?:\s*\(.*\))?"
     start = 'LOCATIONS LIST'
@@ -264,16 +272,20 @@ def get_locations(file: str) -> list:
     for entry in get_movie_matches(file, pattern, start, skip):
         yield entry
 
+    LOG.debug("Finihed parsing locations")
 
-def get_running_times(file: str) -> list:
+
+def get_running_times(file: str):
     """Reads in the running-times.list file from the imdb interface dump
 
     Args:
         file: path to the file
 
     Returns:
-        A list of tuples of type (Movie, [Time in Minutes])
+        Generator of tuples of type (Movie, [Time in Minutes])
     """
+    LOG.debug("Parsing running-times...")
+
     pattern = r"[^\d]*(\d+)"
     start = 'RUNNING TIMES LIST'
     skip = 1
@@ -281,16 +293,19 @@ def get_running_times(file: str) -> list:
     for entry in get_movie_matches(file, pattern, start, skip):
         yield entry
 
+    LOG.debug("Finished parsing running-times")
 
-def get_technicals(file: str) -> list:
+
+def get_technicals(file: str):
     """Reads in the technical.list
 
     Args:
         file: path to the file
 
     Returns:
-        A list of tuples of type (Movie, Tech)
+        Generator of tuples of type (Movie, Tech)
     """
+    LOG.debug("Parsing technicals...")
 
     pattern = (MOVIE_PATTERN + r"\s+" +
                r"(CAM|MET|OFM|PFM|RAT|PCS|LAB):([^(\t\n/]*)")
@@ -301,32 +316,36 @@ def get_technicals(file: str) -> list:
     for line in get_matches(file, pattern, start, skip):
         mov = Movie(line[0], int(line[1]) if line[1] != '????' else None,
                     *line[2:5])
-        index = TECH_DICT[line[5].lower()]  # TODO: This is UGLY
+        index = TECH_DICT[line[5].lower()]
+        # Remove trailing space.. there's probably a better way
         data = line[6][:-1] if line[6][:-1] == ' ' else line[6]
 
-        if not entry:
+        if not entry:  # Only first iteration. Create new entry
             tec = Tech(*[[] for _ in Tech._fields])
             tec[index].append(data)
             entry = (mov, tec)
-        elif entry[0] == mov:
+        elif entry[0] == mov:  # Current line is from same movie as last => add
             entry[1][index].append(data)
-        else:
+        else:  # curr. line is dif. mov. => yield and create new entry
             yield entry
             tec = Tech(*[[] for _ in Tech._fields])
             tec[index].append(data)
             entry = (mov, tec)
     yield entry
 
+    LOG.debug("Finished parsing technicals")
 
-def get_businesses(file: str) -> list:
+
+def get_businesses(file: str):
     """ Get business information from business.list
 
     Args:
         file: The path to the file
 
     Returns:
-        A list of tuples of type (Movie, Business)
+        Generator of tuples of type (Movie, Business)
     """
+    LOG.debug("Parsing businesses...")
 
     pattern = r"(BT|GR|OW|RT|AD|SD|PD|ST|CP|WG):\s(.*)"
 
@@ -346,8 +365,10 @@ def get_businesses(file: str) -> list:
             if '-----------------------------------------------------' in line:
                 break
             bsns = Business(*[[] for _ in Business._fields])
-            title = re.match(MOVIE_PATTERN, line[4:]).groups()  # First line always MV
-            mov = Movie(title[0], int(title[1]) if title[1] != '????' else None,
+            title = re.match(MOVIE_PATTERN,
+                             line[4:]).groups()  # First line always MV
+            mov = Movie(title[0],
+                        int(title[1]) if title[1] != '????' else None,
                         *title[2:5])
 
             for entry in input_file:  # Looping over the entry of one movie
@@ -356,10 +377,12 @@ def get_businesses(file: str) -> list:
                 if '------------------------------------------------' in entry:
                     break
                 result = re.match(pattern, entry).groups()
-                index = BUSINESS_DICT[result[0].lower()]
-                bsns[index].append(result[1])
+                index = BUSINESS_DICT[result[0].lower()]  # Get index of field
+                bsns[index].append(result[1])             # in the named tuple
 
             yield (mov, bsns)
+
+    LOG.debug("Finished parsing businesses")
 
 
 def get_directors(file: str) -> list:
@@ -411,8 +434,43 @@ def combine_lists(*lists) -> list:
     return return_list
 
 
-def download_data(directory: str, url: str = BASE_URL,
-                  files: tuple = FILE_LIST) -> None:
+def combine_generator(*generators):
+    """ Combines the data from the given generators into one list
+
+    This helps especially with large datasets or lots of sets, to reduce
+    memory usage.
+
+    Args:
+        generator functions to get the data
+
+    Returns:
+        Dictionary of combined movies. {mov: [gen1_data, gen2_data, ...]}
+    """
+    curr_list = [x for x in generators[0]]
+    curr_dict = dict(curr_list)
+    curr_set = set(curr_dict)
+
+    return_dict = {k: [v] for k, v in curr_dict.items()}
+
+    for generator in generators[1:]:
+        this_list = [elem for elem in generator]
+        this_dict = dict(this_list)
+        this_set = set(this_dict)
+
+        curr_set = curr_set & this_set
+        diff_set = curr_set - this_set
+
+        for iden in diff_set:
+            return_dict.pop(iden)
+
+        for iden in curr_set:
+            return_dict[iden].append(this_dict[iden])
+
+    return return_dict
+
+
+def download_data(directory: str, url: str=BASE_URL,
+                  files: tuple=FILE_LIST) -> None:
     """Download the specified list files from the imdb database
 
     Args:
@@ -427,13 +485,12 @@ def download_data(directory: str, url: str = BASE_URL,
         raise IOError("This is not a directory!")
 
     LOG.info("Starting download...")
-    for file in FILE_LIST:
+    for file in files:
         path = os.path.join(directory, file + '.list.gz')
-        url_full = BASE_URL + file + '.list.gz'
+        url_full = url + file + '.list.gz'
         if os.path.exists(path):
             raise IOError("File already exists!")
-        with open(path, 'wb') as output_file:
-            urllib.request.urlretrieve(url_full, path)
+        urllib.request.urlretrieve(url_full, path)
         LOG.info("Finised downloading " + path)
 
 
