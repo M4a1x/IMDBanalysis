@@ -45,7 +45,7 @@ Limit to movies with x reviews?
   - correlation of keywords to rating/gross/number of votes -> find keywords that every good movie has
   - draw links between movies, link database
 4. Predict rating of new movies
-  - with keywords, genre, budget, director
+  - with keywords, genre, budget, technicals, director, language, duration, location
   - Personalized score. Predict how much I will like a movie based on movies I rated/liked before.
 
 Questions
@@ -84,3 +84,22 @@ Libraries used
 Methods
 What are the results
 What did I learn
+
+
+
+
+scatterplot = scatter(x, y)
+fig = pyplot figure, multiple graphs in one figure
+fig.add_subplot return axes object
+pcolor
+hist
+figsize as argument for fig
+
+after that quantify?
+no correlation? What doesn't work? IMPORTANT!
+
+pearsonr
+spearmanr
+ttest
+single test
+chi-square test

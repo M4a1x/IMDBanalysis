@@ -320,6 +320,9 @@ def get_technicals(file: str):
         # Remove trailing space.. there's probably a better way
         data = line[6][:-1] if line[6][:-1] == ' ' else line[6]
 
+        if line[5].lower() == "met":
+            data = re.sub("[^0-9-]", "", data)
+
         if not entry:  # Only first iteration. Create new entry
             tec = Tech(*[[] for _ in Tech._fields])
             tec[index].append(data)
@@ -457,8 +460,8 @@ def combine_generator(*generators):
         this_dict = dict(this_list)
         this_set = set(this_dict)
 
-        curr_set = curr_set & this_set
         diff_set = curr_set - this_set
+        curr_set = curr_set & this_set
 
         for iden in diff_set:
             return_dict.pop(iden)
