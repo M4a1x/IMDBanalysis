@@ -103,3 +103,21 @@ spearmanr
 ttest
 single test
 chi-square test
+
+
+scipy optimize 
+curve_fit
+
+first clustering by scikit.learn 
+
+
+
+
+10min
+Background
+Probelem formulation
+Implementation
+Demonstration
+What I learned
+
+More about apply than details of Implementation
